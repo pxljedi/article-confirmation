@@ -1,0 +1,3 @@
+core = "7.x"
+description = "Adds a Popup to Ask Whether a User Wants to Exit"
+name = "Confirm Before Exiting"

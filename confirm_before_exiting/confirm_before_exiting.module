@@ -1,0 +1,95 @@
+<?php
+
+/**
+ * @file
+ * confirm_before_exiting.module
+ * Adds a message that one is closing a page without saving.
+ */
+
+/**
+ * Implements hook_init().
+ */
+function confirm_before_exiting_init() {
+  // Load the pages variable.
+  $pages = drupal_strtolower(variable_get('confirm_before_exiting_pages', ""));
+
+  // Get the current path.
+  $current_path = current_path();
+
+  // Get the current path alias.
+  $current_alias = drupal_get_path_alias($current_path);
+
+  // Convert the Drupal path to lowercase.
+  $path = drupal_strtolower($current_alias);
+
+  // Check if the page matches the current path.
+  $page_match = drupal_match_path($path, $pages);
+
+  // If the lowercased aliased path is not the same as the current path, run
+  // a check with the current path.
+  if ($path != $current_path) {
+    $page_match = $page_match || drupal_match_path($current_path, $pages);
+  }
+
+  $node_edit_match = FALSE;
+  if (arg(0) == 'node' && arg(2) == 'edit') {
+    $node = menu_get_object();
+    if (in_array($node->type, variable_get('confirm_before_exiting_content_type_edit', array()))) {
+      $node_edit_match = TRUE;
+    }
+  }
+
+  if ($page_match || $node_edit_match) {
+    drupal_add_js("jQuery(document).ready(function () {
+      jQuery('.form-submit').click(function(e) {
+        window.form_submit = true;
+      });
+      jQuery(window).bind('beforeunload', function() {
+        if (!window.form_submit) {
+          return 'You are trying to leave a page that has not been saved.';
+        }
+      });
+    });", 'inline');
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function confirm_before_exiting_menu() {
+  $items = array();
+
+  $items['admin/config/user-interface/confirm_before_exiting'] = array(
+    'title' => 'Confirm Before Exiting',
+    'description' => 'Administer Confirm Before Exiting Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('confirm_before_exiting_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+/**
+ * Confirm Before Exiting adminstration form.
+ */
+function confirm_before_exiting_settings_form($form, &$form_settings) {
+
+  $form['confirm_before_exiting_pages'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Confirm Before Exiting Pages'),
+    '#default_value' => variable_get('confirm_before_exiting_pages', ''),
+    '#description' => t("Specify pages by using their paths. Enter one path per line. The '*' character is a wildcard. Example paths are blog for the blog page and blog/* for every personal blog. <front> is the front page"),
+  );
+
+  $form['confirm_before_exiting_content_type_edit'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Content Type Edit Forms'),
+    '#default_value' => variable_get('confirm_before_exiting_content_type_edit', array()),
+    '#description' => t("Select the content types from the list to display the Confirm Before Exiting popup on. The popup will be displayed on these content type's node edit pages."),
+    '#options' => node_type_get_names(),
+  );
+
+  return system_settings_form($form);
+}
